@@ -97,9 +97,9 @@ describe("Hermes", function () {
     });
 
     it("3) Claim tokens and deposit them again", async function() {
-      const claimTokens1 = await stak.connect(addr1).claimTokens(2500);
+      const claimTokens1 = await stak.connect(addr1).claimTokens(1000);
       await claimTokens1.wait();
-      const deposit11 = await stak.connect(addr1).deposit(2500);
+      const deposit11 = await stak.connect(addr1).deposit(1000);
       await deposit11.wait();
     });
 
