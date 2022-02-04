@@ -31,7 +31,7 @@ describe("Hermes", function () {
       [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
       token = await ERC20.connect(owner).deploy();
       reward = await Reward.connect(owner).deploy();
-      stak = await Staking.connect(owner).deploy(token.address, reward.address, 100, 3600, 3600);
+      stak = await Staking.connect(owner).deploy(token.address, reward.address, 500, 3600, 3600);
     });
 
 
@@ -65,11 +65,18 @@ describe("Hermes", function () {
       await allowance4.wait();
     });
 
-    it("2) Deposit & 4 hours", async function() {
+    it("2) 1st hour: Deposit and set new parametres", async function() {
       const deposit1 = await stak.connect(addr1).deposit(1000);
       await deposit1.wait();
+      
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
+
+      const newParametres = await stak.connect(owner).setParametres(100, 3600, 3600);
+      await newParametres.wait();
+    });
+
+    it("2) Deposit & 4 hours", async function() {
 
       const deposit2 = await stak.connect(addr2).deposit(2000);
       await deposit2.wait();
@@ -101,7 +108,7 @@ describe("Hermes", function () {
       await ethers.provider.send("evm_mine", []);
       const claimRewards1 = await stak.connect(addr1).claimRewards();
       await claimRewards1.wait();
-      expect(await reward.connect(addr1).balanceOf(addr1.address)).to.equal(214);
+      expect(await reward.connect(addr1).balanceOf(addr1.address)).to.equal(614);
     });
   });
 
