@@ -33,7 +33,9 @@ contract Staking is Ownable {
     }
 
     function claimRewards() public {
-        uint256 amount = availableReward();
+        update();
+        uint256 amount = (tps * accounts[msg.sender].tokens 
+        - accounts[msg.sender].misReward + accounts[msg.sender].avaReward) / precision;
         ERC20(rewardAddress).transfer(msg.sender, amount);
         accounts[msg.sender].misReward += amount * precision;
     }
@@ -72,9 +74,10 @@ contract Staking is Ownable {
         minDuration = _minDuration;
     }
 
-    function availableReward() public returns(uint256 amount) {
-        update();
-        amount = (tps * accounts[msg.sender].tokens 
-        - accounts[msg.sender].misReward + accounts[msg.sender].avaReward) / precision;
+    function availableReward(address _account) external view returns(uint256 amount) {
+        uint256 count = (block.timestamp - lastEdit) / minDuration;
+        uint256 currentTPS = tps + (reward * minDuration * precision / (total * duration)) * count;
+        amount = (currentTPS * accounts[_account].tokens 
+        - accounts[_account].misReward + accounts[_account].avaReward) / precision;
     }
 }
