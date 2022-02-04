@@ -66,7 +66,7 @@ describe("Hermes", function () {
     });
 
     it("2) 1st hour: Deposit and set new parametres", async function() {
-      const deposit1 = await stak.connect(addr1).deposit(1000);
+      const deposit1 = await stak.connect(addr1).stake(1000);
       await deposit1.wait();
       
       await ethers.provider.send("evm_increaseTime", [3650]);
@@ -78,28 +78,30 @@ describe("Hermes", function () {
 
     it("2) Deposit & 4 hours", async function() {
 
-      const deposit2 = await stak.connect(addr2).deposit(2000);
+      const deposit2 = await stak.connect(addr2).stake(2000);
       await deposit2.wait();
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
 
-      const deposit3 = await stak.connect(addr3).deposit(2500);
+      const deposit3 = await stak.connect(addr3).stake(2500);
       await deposit3.wait();
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
 
-      const deposit4 = await stak.connect(addr4).deposit(5000);
+      const deposit4 = await stak.connect(addr4).stake(5000);
       await deposit4.wait();
-      const deposit5 = await stak.connect(addr1).deposit(1500);
+      const deposit5 = await stak.connect(addr1).stake(1500);
       await deposit5.wait();
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
     });
 
     it("3) Claim tokens and deposit them again", async function() {
-      const claimTokens1 = await stak.connect(addr1).claimTokens(1000);
+      const claimTokens1 = await stak.connect(addr1).unstake(1000);
       await claimTokens1.wait();
-      const deposit11 = await stak.connect(addr1).deposit(1000);
+      const claimTokens2 = await stak.connect(addr1).unstake(1000);
+      await claimTokens2.wait();
+      const deposit11 = await stak.connect(addr1).stake(2000);
       await deposit11.wait();
     });
 
@@ -110,7 +112,7 @@ describe("Hermes", function () {
     });
 
     it("4) Try to Claim Rewards", async function() {
-      const claimRewards1 = await stak.connect(addr1).claimRewards();
+      const claimRewards1 = await stak.connect(addr1).claim();
       await claimRewards1.wait();
       expect(await reward.connect(addr1).balanceOf(addr1.address)).to.equal(614);
     });

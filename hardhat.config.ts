@@ -6,6 +6,7 @@ import { ethers } from "hardhat";
 import { hexConcat } from "@ethersproject/bytes";
 import "@nomiclabs/hardhat-waffle";
 import "solidity-coverage";
+import "hardhat-docgen";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-web3";
 import "./tasks";
@@ -19,7 +20,7 @@ const { MNEMONIC, INFURA_URL, TOKEN_ADDR, DAO_ADDR } = process.env;
  * @type import('hardhat/config').HardhatUserConfig
  */
 export default {
-  solidity: "0.8.1",
+  solidity: "0.8.9",
   networks: {
     rinkeby: {
       // gas: 5000000,
