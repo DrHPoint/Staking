@@ -37,7 +37,7 @@ describe("Hermes", function () {
       await mint2.wait();
       await mint3.wait();
       await mint4.wait();
-      const allowance1 = await token.connect(addr1).approve(stak.address, 2500);
+      const allowance1 = await token.connect(addr1).approve(stak.address, 5000);
       const allowance2 = await token.connect(addr2).approve(stak.address, 2000);
       const allowance3 = await token.connect(addr3).approve(stak.address, 2500);
       const allowance4 = await token.connect(addr4).approve(stak.address, 5000);
@@ -63,9 +63,14 @@ describe("Hermes", function () {
       await deposit5.wait();
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
-      const claimRewards1 = await stak.connect(addr1).claimRewards(172);
+      const claimTokens1 = await stak.connect(addr1).claimTokens(2500);
+      await claimTokens1.wait();
+      const deposit11 = await stak.connect(addr1).deposit(2500);
+      await deposit11.wait();
+      await ethers.provider.send("evm_increaseTime", [2 * 3650]);
+      await ethers.provider.send("evm_mine", []);
+      const claimRewards1 = await stak.connect(addr1).claimRewards(214);
       await claimRewards1.wait();
-
     });
   });
 
