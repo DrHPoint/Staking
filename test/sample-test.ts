@@ -9,6 +9,8 @@ let Staking : ContractFactory;
 let stak : Contract;
 let ERC20 : ContractFactory;
 let token : Contract;
+let Reward : ContractFactory;
+let reward : Contract;
 let owner: SignerWithAddress;
 let addr1: SignerWithAddress;
 let addr2: SignerWithAddress;
@@ -21,14 +23,19 @@ describe("Hermes", function () {
     [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
     ERC20 = await ethers.getContractFactory("MyToken");
     token = await ERC20.connect(owner).deploy();
+    Reward = await ethers.getContractFactory("MyToken");
+    reward = await Reward.connect(owner).deploy();
     Staking = await ethers.getContractFactory("Staking");
-    stak = await Staking.connect(owner).deploy(token.address, 100, 3600);
+    stak = await Staking.connect(owner).deploy(token.address, reward.address, 100, 3600, 3600);
   });
 
   describe("Stacking", () => {
     it("Stacking", async () => {
       await token.deployed();
+      await reward.deployed();
       await stak.deployed();
+      const mint = await reward.connect(owner).mint(stak.address, 2500);
+      await mint.wait();
       const mint1 = await token.connect(owner).mint(addr1.address, 2500);
       const mint2 = await token.connect(owner).mint(addr2.address, 2000);
       const mint3 = await token.connect(owner).mint(addr3.address, 2500);
@@ -69,8 +76,9 @@ describe("Hermes", function () {
       await deposit11.wait();
       await ethers.provider.send("evm_increaseTime", [2 * 3650]);
       await ethers.provider.send("evm_mine", []);
-      const claimRewards1 = await stak.connect(addr1).claimRewards(214);
+      const claimRewards1 = await stak.connect(addr1).claimRewards();
       await claimRewards1.wait();
+      expect(await reward.connect(addr1).balanceOf(addr1.address)).to.equal(214);
     });
   });
 

@@ -5,25 +5,25 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract Staking is ERC20, Ownable {
+contract Staking is Ownable {
     uint256 public tps;
-    uint256 private const = 10 ** 18;
+    uint256 private precision = 10 ** 18;
     uint256 private lastEdit;
-    uint256 public perReward;
-    uint256 public per;
+    uint256 public reward;
+    uint256 public duration;
+    uint256 public minDuration;
     uint256 private total;
     address public tokenAddress;
+    address public rewardAddress;
     mapping (address => Account) public accounts;
 
-    constructor(address _tokenAddress, uint256 _perReward, uint256 _per) ERC20("Stak", "STK") {
-        perReward = _perReward;
-        per = _per;
+    constructor(address _tokenAddress, address _rewardAddress, uint256 _reward, uint256 _duration, uint256 _minDuration) {
+        reward = _reward;
+        duration = _duration;
         tokenAddress = _tokenAddress;
-    }
-
-    modifier forCheck(uint256 _amount) {
-        require(_amount > 0, "Not enough to deposit");
-        _;
+        rewardAddress = _rewardAddress;
+        minDuration = _minDuration;
+        lastEdit = block.timestamp;
     }
 
     struct Account {
@@ -32,16 +32,16 @@ contract Staking is ERC20, Ownable {
         uint256 avaReward;
     }
 
-    function claimRewards(uint256 _amount) public forCheck(_amount) {
+    function claimRewards() public {
         update();
         uint256 amount = (tps * accounts[msg.sender].tokens 
-        - accounts[msg.sender].misReward + accounts[msg.sender].avaReward) / const;
-        require(_amount <= amount, "Not enough rewards");
-        transfer(msg.sender, amount);
-        accounts[msg.sender].misReward += amount * const;
+        - accounts[msg.sender].misReward + accounts[msg.sender].avaReward) / precision;
+        ERC20(rewardAddress).transfer(msg.sender, amount);
+        accounts[msg.sender].misReward += amount * precision;
     }
 
-    function claimTokens(uint256 _amount) public forCheck(_amount) {
+    function claimTokens(uint256 _amount) public {
+        require(_amount > 0, "Not enough to deposit");
         require(accounts[msg.sender].tokens >= _amount, "Too much amount");
         require(ERC20(tokenAddress).transfer(msg.sender, _amount));
         update();
@@ -61,18 +61,16 @@ contract Staking is ERC20, Ownable {
     }
 
     function update() internal {
-        uint256 count = (block.timestamp - lastEdit) / per;
-        lastEdit += per * count;
-        _mint(msg.sender, count * perReward);
+        uint256 count = (block.timestamp - lastEdit) / minDuration;
+        lastEdit += minDuration * count;
         if (total > 0)
-            tps = tps + (perReward * const / total) * count;
+            tps = tps + (reward * minDuration * precision / (total * duration)) * count;
     }
 
-    function setPer(uint256 _per) external onlyOwner {
-        per = _per;
-    }
-
-    function setPerReward(uint256 _perReward) external onlyOwner {
-        perReward = _perReward;
+    function setParametres(uint256 _reward, uint256 _duration, uint256 _minDuration) external onlyOwner{
+        update();
+        duration = _duration;
+        reward = _reward;
+        minDuration = _minDuration;
     }
 }
