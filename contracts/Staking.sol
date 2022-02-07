@@ -4,74 +4,79 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-/**  
-* @title A Stacking contract.
-* @author Pavel E. Hrushchev (DrHPoint).
-* @notice You can use this contract for working with stacking.
-* @dev All function calls are currently implemented without side effects. 
-*/
+/**
+ * @title A Stacking contract.
+ * @author Pavel E. Hrushchev (DrHPoint).
+ * @notice You can use this contract for working with stacking.
+ * @dev All function calls are currently implemented without side effects.
+ */
 contract Staking is AccessControl {
-    
-    /** 
-    * @notice Shows that the user stake some tokens to contract.
-    * @param _user is the address of user.
-    * @param _amount is an amount of tokens which stakes to contract.
-    */
+    /**
+     * @notice Shows that the user stake some tokens to contract.
+     * @param _user is the address of user.
+     * @param _amount is an amount of tokens which stakes to contract.
+     */
     event Stake(address _user, uint256 _amount);
-    
-    /** 
-    * @notice Shows that the user unstake some tokens from contract.
-    * @param _user is the address of user.
-    * @param _amount is an amount of tokens which unstakes from contract.
-    */
+
+    /**
+     * @notice Shows that the user unstake some tokens from contract.
+     * @param _user is the address of user.
+     * @param _amount is an amount of tokens which unstakes from contract.
+     */
     event Unstake(address _user, uint256 _amount);
-    
-    /** 
-    * @notice Shows that the user claim some reward tokens from contract.
-    * @param _user is the address of user.
-    * @param _amount is an amount of reward tokens which claim from contract.
-    */
+
+    /**
+     * @notice Shows that the user claim some reward tokens from contract.
+     * @param _user is the address of user.
+     * @param _amount is an amount of reward tokens which claim from contract.
+     */
     event Claim(address _user, uint256 _amount);
 
     /** 
     * @notice Shows that the admin set new parametres of reward on contract.
     * @param _reward is an amount of reward tokens 
     that will be paid to all of user in some epoch.
-    * @param _epoch is the length of time for which the reward is distributed.
+    * @param _epochDuration is the length of time for which the reward is distributed.
     */
-    event SetParametres(uint256 _reward, uint256 _epoch);
-    
+    event SetParametres(uint256 _reward, uint256 _epochDuration);
+
     struct Account {
-        uint256 amountStake; //the number of tokens that the user has staked 
+        uint256 amountStake; //the number of tokens that the user has staked
         uint256 missedReward; //the number of reward tokens that the user missed
         uint256 accumulate; //the number of reward tokens that the user accumulated after unstake
     }
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    
+
     uint256 public tps;
-    uint256 public rewardAtEpoch; 
-    uint256 public epoch;
-    
+    uint256 public rewardAtEpoch;
+    uint256 public epochDuration;
+
     address public tokenAddress;
     address public rewardAddress;
-    
+
     uint256 private precision = 1e18;
-    uint256 private timestamp;
-    uint256 private duration; //the minimum period of time for which the reward is received
-    uint256 private total;
+    uint256 private lastTimeEditedTPS;
+    uint256 private minReceiveRewardDuration; //the minimum period of time for which the reward is received
+    uint256 private totalAmountStake;
 
-    mapping (address => Account) public accounts;
+    mapping(address => Account) public accounts;
 
-    constructor(address _tokenAddress, address _rewardAddress, uint256 _rewardAtEpoch, uint256 _epoch, uint256 _duration) {
+    constructor(
+        address _tokenAddress,
+        address _rewardAddress,
+        uint256 _rewardAtEpoch,
+        uint256 _epochDuration,
+        uint256 _minReceiveRewardDuration
+    ) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         rewardAtEpoch = _rewardAtEpoch;
-        epoch = _epoch;
+        epochDuration = _epochDuration;
         tokenAddress = _tokenAddress;
         rewardAddress = _rewardAddress;
-        duration = _duration;
-        timestamp = block.timestamp;
+        minReceiveRewardDuration = _minReceiveRewardDuration;
+        lastTimeEditedTPS = block.timestamp;
     }
 
     /** 
@@ -82,16 +87,16 @@ contract Staking is AccessControl {
     */
     function stake(uint256 _amount) external {
         require(_amount > 0, "Not enough to deposite");
-        require(ERC20(tokenAddress).transferFrom(msg.sender, address(this), _amount));
+        ERC20(tokenAddress).transferFrom(msg.sender, address(this), _amount);
         update();
         accounts[msg.sender].amountStake += _amount;
         accounts[msg.sender].missedReward += _amount * tps;
-        if (accounts[msg.sender].accumulate > 0)
-        {
-            accounts[msg.sender].missedReward -= accounts[msg.sender].accumulate;
-            accounts[msg.sender].accumulate = 0;
-        }
-        total += _amount;
+        // if (accounts[msg.sender].accumulate > 0)
+        // {
+        //     accounts[msg.sender].missedReward -= accounts[msg.sender].accumulate;
+        //     accounts[msg.sender].accumulate = 0;
+        // }
+        totalAmountStake += _amount;
     }
 
     /** 
@@ -102,20 +107,30 @@ contract Staking is AccessControl {
     */
     function unstake(uint256 _amount) external {
         require(_amount > 0, "Not enough to unstake");
-        require(accounts[msg.sender].amountStake >= _amount, "Too much to unstake");
+        require(
+            accounts[msg.sender].amountStake >= _amount,
+            "Too much to unstake"
+        );
         require(ERC20(tokenAddress).transfer(msg.sender, _amount));
         update();
-        accounts[msg.sender].accumulate += tps * accounts[msg.sender].amountStake - accounts[msg.sender].missedReward;
+        accounts[msg.sender].accumulate +=
+            tps *
+            accounts[msg.sender].amountStake -
+            accounts[msg.sender].missedReward;
         accounts[msg.sender].amountStake -= _amount;
-        accounts[msg.sender].missedReward = tps * accounts[msg.sender].amountStake;
-        total -= _amount;
+        accounts[msg.sender].missedReward =
+            tps *
+            accounts[msg.sender].amountStake;
+        totalAmountStake -= _amount;
     }
 
     ///@notice With this function user can claim some amount of reward tokens from contract.
     function claim() external {
         update();
-        uint256 amount = (tps * accounts[msg.sender].amountStake 
-        - accounts[msg.sender].missedReward + accounts[msg.sender].accumulate) / precision;
+        uint256 amount = (tps *
+            accounts[msg.sender].amountStake -
+            accounts[msg.sender].missedReward +
+            accounts[msg.sender].accumulate) / precision;
         ERC20(rewardAddress).transfer(msg.sender, amount);
         accounts[msg.sender].missedReward += amount * precision;
     }
@@ -126,35 +141,56 @@ contract Staking is AccessControl {
     * @param _account is the address of some user.
     * @return amount - An amount of reward tokens that can be claimed.
     */
-    function availableReward(address _account) external view returns(uint256 amount) {
-        uint256 amountOfDuration = (block.timestamp - timestamp) / duration;
-        uint256 currentTPS = tps + (rewardAtEpoch * duration * precision / (total * epoch)) * amountOfDuration;
-        amount = (currentTPS * accounts[_account].amountStake 
-        - accounts[_account].missedReward + accounts[_account].accumulate) / precision;
+    function availableReward(address _account)
+        external
+        view
+        returns (uint256 amount)
+    {
+        uint256 amountOfDuration = (block.timestamp - lastTimeEditedTPS) /
+            minReceiveRewardDuration;
+        uint256 currentTPS = tps +
+            ((rewardAtEpoch * minReceiveRewardDuration * precision) /
+                (totalAmountStake * epochDuration)) *
+            amountOfDuration;
+        amount =
+            (currentTPS *
+                accounts[_account].amountStake -
+                accounts[_account].missedReward +
+                accounts[_account].accumulate) /
+            precision;
     }
 
-    /** 
-    * @notice With this function admin can set new parameters of rewarding users to contract.
-    * @dev This function can only be called by users with the ADMIN_ROLE role. 
-    * @param _reward is an amount of reward tokens that will be paid to all of user in new epoch.
-    * @param _epoch is the length of time for which the reward is distributed.
-    * @param _duration the minimum period of time for which the reward is received.
-    */
-    function setParametres(uint256 _reward, uint256 _epoch, uint256 _duration) external onlyRole(ADMIN_ROLE) {
+    /**
+     * @notice With this function admin can set new parameters of rewarding users to contract.
+     * @dev This function can only be called by users with the ADMIN_ROLE role.
+     * @param _reward is an amount of reward tokens that will be paid to all of user in new epoch.
+     * @param _epochDuration is the length of time for which the reward is distributed.
+     * @param _minReceiveRewardDuration the minimum period of time for which the reward is received.
+     */
+    function setParametres(
+        uint256 _reward,
+        uint256 _epochDuration,
+        uint256 _minReceiveRewardDuration
+    ) external onlyRole(ADMIN_ROLE) {
         update();
-        epoch = _epoch;
+        epochDuration = _epochDuration;
         rewardAtEpoch = _reward;
-        duration = _duration;
+        minReceiveRewardDuration = _minReceiveRewardDuration;
     }
 
-    /** 
-    * @notice This function update value of tps.
-    * @dev This function is public in case of emergency.
-    */
+    /**
+     * @notice This function update value of tps.
+     * @dev This function is public in case of emergency.
+     */
     function update() public {
-        uint256 amountOfDuration = (block.timestamp - timestamp) / duration;
-        timestamp += duration * amountOfDuration;
-        if (total > 0)
-            tps = tps + (rewardAtEpoch * duration * precision / (total * epoch)) * amountOfDuration;
+        uint256 amountOfDuration = (block.timestamp - lastTimeEditedTPS) /
+            minReceiveRewardDuration;
+        lastTimeEditedTPS += minReceiveRewardDuration * amountOfDuration;
+        if (totalAmountStake > 0)
+            tps =
+                tps +
+                ((rewardAtEpoch * minReceiveRewardDuration * precision) /
+                    (totalAmountStake * epochDuration)) *
+                amountOfDuration;
     }
 }

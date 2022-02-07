@@ -108,13 +108,13 @@ describe("Hermes", function () {
     it("4) Check Rewards on next day", async function() {
       await ethers.provider.send("evm_increaseTime", [2 * 3650]);
       await ethers.provider.send("evm_mine", []);
-      expect(await stak.availableReward(addr1.address)).to.equal(parseUnits("614", 18));
+      expect(await stak.availableReward(addr1.address)).to.closeTo(parseUnits("614.015", 18),1e15);
     });
 
     it("4) Try to Claim Rewards", async function() {
       const claimRewards1 = await stak.connect(addr1).claim();
       await claimRewards1.wait();
-      expect(await reward.connect(addr1).balanceOf(addr1.address)).to.equal(parseUnits("614", 18));
+      expect(await reward.connect(addr1).balanceOf(addr1.address)).to.closeTo(parseUnits("614.015", 18),1e15);
     });
   });
 
