@@ -123,6 +123,7 @@ contract Staking is AccessControl {
         //     accounts[msg.sender].accumulate = 0;
         // }
         totalAmountStake += _amount;
+        emit Stake(msg.sender, _amount);
     }
 
     /** 
@@ -143,6 +144,7 @@ contract Staking is AccessControl {
         accounts[msg.sender].amountStake -= _amount;
         accounts[msg.sender].missedTPS = tps;
         totalAmountStake -= _amount;
+        emit Unstake(msg.sender, _amount);
     }
 
     ///@notice With this function user can claim some amount of reward tokens from contract.
@@ -153,6 +155,7 @@ contract Staking is AccessControl {
             account.accumulate) / precision;
         IERC20(rewardAddress).safeTransfer(msg.sender, amount);
         account.missedTPS = tps;
+        emit Claim(msg.sender, amount);
     }
 
     /**
@@ -174,6 +177,7 @@ contract Staking is AccessControl {
         epochDuration = _epochDuration;
         rewardAtEpoch = _reward;
         minReceiveRewardDuration = _minReceiveRewardDuration;
+        emit SetParametres(_reward, _epochDuration);
     }
 
     /** 
