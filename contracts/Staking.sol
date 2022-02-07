@@ -1,6 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.9;
 
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -46,7 +47,7 @@ contract Staking is AccessControl {
 
     struct Account {
         uint256 amountStake; //the number of tokens that the user has staked
-        uint256 missedReward; //the number of reward tokens that the user missed
+        uint256 missedTPS; //the number of reward tokens that the user missed
         uint256 accumulate; //the number of reward tokens that the user accumulated after unstake
     }
 
@@ -113,8 +114,9 @@ contract Staking is AccessControl {
         require(_amount > 0, "Not enough to deposite");
         IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), _amount);
         update();
+        accounts[msg.sender].accumulate += accounts[msg.sender].amountStake * (tps - accounts[msg.sender].missedTPS);
         accounts[msg.sender].amountStake += _amount;
-        accounts[msg.sender].missedReward += _amount * tps;
+        accounts[msg.sender].missedTPS = tps;
         // if (accounts[msg.sender].accumulate > 0)
         // {
         //     accounts[msg.sender].missedReward -= accounts[msg.sender].accumulate;
@@ -137,26 +139,20 @@ contract Staking is AccessControl {
         );
         IERC20(tokenAddress).safeTransfer(msg.sender, _amount);
         update();
-        accounts[msg.sender].accumulate +=
-            tps *
-            accounts[msg.sender].amountStake -
-            accounts[msg.sender].missedReward;
+        accounts[msg.sender].accumulate += accounts[msg.sender].amountStake * (tps - accounts[msg.sender].missedTPS);
         accounts[msg.sender].amountStake -= _amount;
-        accounts[msg.sender].missedReward =
-            tps *
-            accounts[msg.sender].amountStake;
+        accounts[msg.sender].missedTPS = tps;
         totalAmountStake -= _amount;
     }
 
     ///@notice With this function user can claim some amount of reward tokens from contract.
     function claim() external {
         update();
-        uint256 amount = (tps *
-            accounts[msg.sender].amountStake -
-            accounts[msg.sender].missedReward +
-            accounts[msg.sender].accumulate) / precision;
+        Account storage account = accounts[msg.sender];
+        uint256 amount = (account.amountStake * (tps - account.missedTPS) +
+            account.accumulate) / precision;
         IERC20(rewardAddress).safeTransfer(msg.sender, amount);
-        accounts[msg.sender].missedReward += amount * precision;
+        account.missedTPS = tps;
     }
 
     /**
@@ -216,7 +212,7 @@ contract Staking is AccessControl {
     {
         account = (Account(
             accounts[_account].amountStake,
-            accounts[_account].missedReward,
+            accounts[_account].missedTPS * accounts[_account].amountStake,
             availableReward(_account)
         ));
     }
@@ -255,9 +251,8 @@ contract Staking is AccessControl {
                 (totalAmountStake * epochDuration)) *
             amountOfDuration;
         amount =
-            (currentTPS *
-                accounts[_account].amountStake -
-                accounts[_account].missedReward +
+            ((currentTPS - accounts[_account].missedTPS) *
+                accounts[_account].amountStake +
                 accounts[_account].accumulate) /
             precision;
     }

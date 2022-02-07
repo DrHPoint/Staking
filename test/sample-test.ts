@@ -77,8 +77,11 @@ describe("Hermes", function () {
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
 
+      const account = await stak.getAccount(addr1.address);
+      expect(await account.accumulate).to.closeTo(parseUnits("551.515", 18),1e15);
+
       await stak.connect(addr4).stake(parseUnits("5000", 18));
-      await stak.connect(addr1).stake(parseUnits("1500", 18));
+      (await stak.connect(addr1).stake(parseUnits("1500", 18))).wait();
 
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
