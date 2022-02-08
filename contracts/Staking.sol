@@ -154,9 +154,9 @@ contract Staking is AccessControl {
     function claim() external {
         update();
         uint256 amount = (tps *
-            accounts[msg.sender].amountStake -
-            accounts[msg.sender].missedReward +
-            accounts[msg.sender].accumulate) / precision;
+            accounts[msg.sender].amountStake +
+            accounts[msg.sender].accumulate -
+            accounts[msg.sender].missedReward) / precision;
         IERC20(rewardAddress).safeTransfer(msg.sender, amount);
         accounts[msg.sender].missedReward += amount * precision;
         emit Claim(msg.sender, amount);
@@ -260,9 +260,9 @@ contract Staking is AccessControl {
             amountOfDuration;
         amount =
             (currentTPS *
-                accounts[_account].amountStake -
-                accounts[_account].missedReward +
-                accounts[_account].accumulate) /
+                accounts[_account].amountStake +
+                accounts[_account].accumulate -
+                accounts[_account].missedReward) /
             precision;
     }
 }

@@ -87,6 +87,8 @@ describe("Hermes", function () {
     it("3) Claim tokens and deposit them again", async function() {
       await stak.connect(addr1).unstake(parseUnits("1000", 18));
       await stak.connect(addr1).unstake(parseUnits("1000", 18));
+      await stak.connect(addr1).claim();
+      await stak.connect(addr1).claim();
       await stak.connect(addr1).stake(parseUnits("2000", 18));
     });
 
