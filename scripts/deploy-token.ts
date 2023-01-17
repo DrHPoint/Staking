@@ -18,7 +18,7 @@ async function main() {
 
     await sleep();
 
-    console.log('Sstarting verify contract...');
+    console.log('Starting verify contract...');
 
 
     try {
