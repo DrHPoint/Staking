@@ -1,78 +1,112 @@
 import { expect } from "chai";
 import { Contract, ContractFactory, Signer, utils } from "ethers";
 import { parseEther, parseUnits } from "ethers/lib/utils";
-import { ethers } from "hardhat";
+import { network, ethers } from "hardhat";
+import config from '../config';
 import { hexConcat } from "@ethersproject/bytes";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+import console from "console";
 
 let Staking : ContractFactory;
 let stak : Contract;
-let ERC20 : ContractFactory;
 let token : Contract;
 let Reward : ContractFactory;
 let reward : Contract;
+let USDTWallet: SignerWithAddress;
 let owner: SignerWithAddress;
 let addr1: SignerWithAddress;
 let addr2: SignerWithAddress;
 let addr3: SignerWithAddress;
 let addr4: SignerWithAddress;
+let initBlockTimestamp;
+let endBlockTimestamp;
 
 describe("Hermes", function () {
 
   beforeEach(async () => {
-    ERC20 = await ethers.getContractFactory("MyToken");
-    Reward = await ethers.getContractFactory("MyToken");
+
+    // await network.provider.request({
+    //   method: "hardhat_reset",
+    //   params: [
+    //       {
+    //           forking: {
+    //               jsonRpcUrl: process.env.ALCHEMY_API_HTTP,
+    //               blockNumber: 8000000,
+    //           },
+    //       },
+    //   ],
+    // });
+    
+    
+    Reward = await ethers.getContractFactory("TTT");
     Staking = await ethers.getContractFactory("Staking");
   });
 
-  describe("Stacking", () => {
+  describe("Staking", () => {
 
     it("0) Deploy, mint and get allowance", async function() {
       [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
-      token = await ERC20.connect(owner).deploy();
+      
+      await network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [config.goerli.USDT_WALLET_ADDRESS],
+      });
+      USDTWallet = await ethers.getSigner(config.goerli.USDT_WALLET_ADDRESS as string);
+      
       reward = await Reward.connect(owner).deploy();
-      stak = await Staking.connect(owner).deploy(token.address, reward.address, parseUnits("500", 18), 1800, 900);
+      token = await ethers.getContractAt("ERC20", config.goerli.USDT_ADDRESS);
+      stak = await Staking.connect(owner).deploy(token.address, reward.address, parseUnits("500", 18), 28800, 1800, 900);
     });
-
-
+    
+    
     it("1.1) Deploy", async function() {
-      await token.deployed();
-      await reward.deployed();
-      await stak.deployed();
+      // await reward.deployed();
+      // await stak.deployed();
+      initBlockTimestamp = ((await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp);
+      endBlockTimestamp = await stak.stakingEndTimestamp();
+      console.log(initBlockTimestamp);
+      console.log(endBlockTimestamp);
+      expect(endBlockTimestamp).to.equal(initBlockTimestamp + 28800);
     });
 
     it("1.2) Mint", async function() {
+      console.log(0);
       await reward.connect(owner).mint(stak.address, parseUnits("24000", 18));
-      await token.connect(owner).mint(addr1.address, parseUnits("2500", 18));
-      await token.connect(owner).mint(addr2.address, parseUnits("2000", 18));
-      await token.connect(owner).mint(addr3.address, parseUnits("2500", 18));
-      await token.connect(owner).mint(addr4.address, parseUnits("5000", 18));
+      console.log(0);
+      await token.connect(USDTWallet).transfer(addr1.address, parseUnits("25", 18));
+      console.log(0);
+      await token.connect(USDTWallet).transfer(addr2.address, parseUnits("20", 18));
+      console.log(0);
+      await token.connect(USDTWallet).transfer(addr3.address, parseUnits("25", 18));
+      console.log(0);
+      await token.connect(USDTWallet).transfer(addr4.address, parseUnits("50", 18));
+      console.log(0);
     });
 
     it("1.3) Get allowance", async function() {
-      await token.connect(addr1).approve(stak.address, parseUnits("5000", 18));
-      await token.connect(addr2).approve(stak.address, parseUnits("2000", 18));
-      await token.connect(addr3).approve(stak.address, parseUnits("2500", 18));
-      await token.connect(addr4).approve(stak.address, parseUnits("5000", 18));
+      await token.connect(addr1).approve(stak.address, parseUnits("50", 18));
+      await token.connect(addr2).approve(stak.address, parseUnits("20", 18));
+      await token.connect(addr3).approve(stak.address, parseUnits("25", 18));
+      await token.connect(addr4).approve(stak.address, parseUnits("50", 18));
     });
 
     it("2) 1st hour: Deposit and set new parametres", async function() {
-      await stak.connect(addr1).stake(parseUnits("1000", 18));
+      await stak.connect(addr1).stake(parseUnits("10", 18));
       
       await ethers.provider.send("evm_increaseTime", [1850]);
       await ethers.provider.send("evm_mine", []);
 
-      await stak.connect(owner).setParametres(parseUnits("100", 18), 3600, 3600);
+      await stak.connect(owner).setParametres(parseUnits("100", 18), endBlockTimestamp, 3600, 3600); 
     });
 
     it("2) Deposit & 4 hours", async function() {
 
-      await stak.connect(addr2).stake(parseUnits("2000", 18));
+      await stak.connect(addr2).stake(parseUnits("20", 18));
 
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
 
-      await stak.connect(addr3).stake(parseUnits("2500", 18));
+      await stak.connect(addr3).stake(parseUnits("25", 18));
 
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
@@ -80,17 +114,17 @@ describe("Hermes", function () {
       const account = await stak.getAccount(addr1.address);
       expect(await account.accumulate).to.closeTo(parseUnits("551.515", 18),1e15);
 
-      await stak.connect(addr4).stake(parseUnits("5000", 18));
-      (await stak.connect(addr1).stake(parseUnits("1500", 18))).wait();
+      await stak.connect(addr4).stake(parseUnits("50", 18));
+      (await stak.connect(addr1).stake(parseUnits("15", 18))).wait();
 
       await ethers.provider.send("evm_increaseTime", [3650]);
       await ethers.provider.send("evm_mine", []);
     });
 
     it("3) Claim tokens and deposit them again", async function() {
-      await stak.connect(addr1).unstake(parseUnits("1000", 18));
-      await stak.connect(addr1).unstake(parseUnits("1000", 18));
-      await stak.connect(addr1).stake(parseUnits("2000", 18));
+      await stak.connect(addr1).unstake(parseUnits("10", 18));
+      await stak.connect(addr1).unstake(parseUnits("10", 18));
+      await stak.connect(addr1).stake(parseUnits("20", 18));
     });
 
     it("4) Check Rewards on next day", async function() {
@@ -117,11 +151,13 @@ describe("Hermes", function () {
     });
   });
 
-  describe("Check errors", () => {
-    it("User has no rights to this token", async () => {
-      await token.deployed();
-      await stak.deployed();
-    });
-  });
+  // describe("Check errors", () => {
+  //   it("User has no rights to this token", async () => {
+  //     await token.deployed();
+  //     await stak.deployed();
+  //   });
+
+  //   
+  // });
 
 });

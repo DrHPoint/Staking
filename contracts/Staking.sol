@@ -1,15 +1,14 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.9;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
- * @title A Stacking contract.
+ * @title A Staking contract with time frames.
  * @author Pavel E. Hrushchev (DrHPoint).
- * @notice You can use this contract for working with stacking.
+ * @notice You can use this contract for working with staking.
  * @dev All function calls are currently implemented without side effects.
  */
 contract Staking is AccessControl {
@@ -55,6 +54,7 @@ contract Staking is AccessControl {
         address tokenAddress;
         address rewardAddress;
         uint256 rewardAtEpoch;
+        uint256 stakingEndTimestamp;
         uint256 epochDuration;
         uint256 minReceiveRewardDuration;
     }
@@ -63,6 +63,7 @@ contract Staking is AccessControl {
 
     uint256 public tps;
     uint256 public rewardAtEpoch;
+    uint256 public stakingEndTimestamp;
     uint256 public epochDuration;
 
     address public tokenAddress;
@@ -79,16 +80,18 @@ contract Staking is AccessControl {
         address _tokenAddress,
         address _rewardAddress,
         uint256 _rewardAtEpoch,
+        uint256 _stakingDuration,
         uint256 _epochDuration,
         uint256 _minReceiveRewardDuration
     ) checkEpoch(
+        _stakingDuration,
         _epochDuration,
         _minReceiveRewardDuration
     ) {
-        require (_epochDuration >= _minReceiveRewardDuration);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         rewardAtEpoch = _rewardAtEpoch;
+        stakingEndTimestamp = block.timestamp + _stakingDuration;
         epochDuration = _epochDuration;
         tokenAddress = _tokenAddress;
         rewardAddress = _rewardAddress;
@@ -97,10 +100,14 @@ contract Staking is AccessControl {
     }
 
     modifier checkEpoch(
+        uint256 _stakingDuration,
         uint256 _epochDuration,
         uint256 _minReceiveRewardDuration
     ) {
-        require (_epochDuration >= _minReceiveRewardDuration, "Incorrect parametres");
+        require (((_stakingDuration >= _epochDuration) && 
+            (_epochDuration >= _minReceiveRewardDuration)), "Incorrect parametres");
+        require (((_stakingDuration % _epochDuration == 0) && 
+            (_epochDuration % _minReceiveRewardDuration == 0)), "Incorrect parametres");
         _;
     }
 
@@ -162,18 +169,22 @@ contract Staking is AccessControl {
      * @notice With this function admin can set new parameters of rewarding users to contract.
      * @dev This function can only be called by users with the ADMIN_ROLE role.
      * @param _reward is an amount of reward tokens that will be paid to all of user in new epoch.
+     * @param _stakingEndTimestamp is the end timestamp of staking work.
      * @param _epochDuration is the length of time for which the reward is distributed.
      * @param _minReceiveRewardDuration the minimum period of time for which the reward is received.
      */
     function setParametres(
         uint256 _reward,
+        uint256 _stakingEndTimestamp,
         uint256 _epochDuration,
         uint256 _minReceiveRewardDuration
     ) external onlyRole(ADMIN_ROLE) checkEpoch(
+        (_stakingEndTimestamp - lastTimeEditedTPS),
         _epochDuration,
         _minReceiveRewardDuration
     ) {
         update();
+        stakingEndTimestamp = _stakingEndTimestamp;
         epochDuration = _epochDuration;
         rewardAtEpoch = _reward;
         minReceiveRewardDuration = _minReceiveRewardDuration;
@@ -197,6 +208,7 @@ contract Staking is AccessControl {
             tokenAddress,
             rewardAddress,
             rewardAtEpoch,
+            stakingEndTimestamp,
             epochDuration,
             minReceiveRewardDuration
         ));
@@ -226,7 +238,7 @@ contract Staking is AccessControl {
      * @dev This function is public in case of emergency.
      */
     function update() public {
-        uint256 amountOfDuration = (block.timestamp - lastTimeEditedTPS) /
+        uint256 amountOfDuration = (availableTimestamp() - lastTimeEditedTPS) /
             minReceiveRewardDuration;
         lastTimeEditedTPS += minReceiveRewardDuration * amountOfDuration;
         if (totalAmountStake > 0)
@@ -248,7 +260,7 @@ contract Staking is AccessControl {
         view
         returns (uint256 amount)
     {
-        uint256 amountOfDuration = (block.timestamp - lastTimeEditedTPS) /
+        uint256 amountOfDuration = (availableTimestamp() - lastTimeEditedTPS) /
             minReceiveRewardDuration;
         uint256 currentTPS = tps +
             ((rewardAtEpoch * minReceiveRewardDuration * precision) /
@@ -259,5 +271,16 @@ contract Staking is AccessControl {
                 accounts[_account].amountStake +
                 accounts[_account].accumulate) /
             precision;
+    }
+
+    /** 
+    * @notice This function give available timestamp in frames of staking duration.
+    * @return timestamp - Available timestamp in frames of staking duration.
+    */
+    function availableTimestamp() internal view returns (uint256 timestamp) {
+        if (block.timestamp < stakingEndTimestamp)
+            return block.timestamp;
+        else
+            return stakingEndTimestamp;
     }
 }
