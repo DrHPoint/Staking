@@ -11,10 +11,10 @@ function sleep() {
 
 async function main() {
     
-    const Contract = await hre.ethers.getContractFactory("TTT");
+    const Contract = await hre.ethers.getContractFactory("Token");
     const contract = await Contract.deploy();
     await contract.deployed();
-    console.log("TTT deployed to:", contract.address);
+    console.log("Token deployed to:", contract.address);
 
     await sleep();
 
@@ -25,12 +25,13 @@ async function main() {
         await run('verify:verify', {
             address: contract.address,
             constructorArguments: [],
-                contract: "contracts/Token.sol:TTT"
+                contract: "contracts/Token.sol:Token"
             });
+            console.log('Verify successfull')
         } catch (e: any) {
             console.log(e.message)
         }
-    console.log('Verify successfull') 
+     
 }
 
 

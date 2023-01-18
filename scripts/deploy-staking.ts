@@ -11,7 +11,7 @@ function sleep() {
 
 async function main() {
   
-    const { TTT_ADDRESS, USDT_ADDRESS } = config[network.name]
+    const { TTT_ADDRESS, FAKE_USDT_ADDRESS } = config[network.name]
 
     const hour = 60 * 60;
     const day = 24 * hour;
@@ -20,7 +20,7 @@ async function main() {
     const rewardPerDay = parseUnits("1000", 18);
 
     const Contract = await hre.ethers.getContractFactory("Staking");
-    const contract = await Contract.deploy(USDT_ADDRESS, TTT_ADDRESS, rewardPerDay, month, day, hour);
+    const contract = await Contract.deploy(FAKE_USDT_ADDRESS, TTT_ADDRESS, rewardPerDay, month, day, hour);
     await contract.deployed();
     
     console.log("Staking deployed to:", contract.address);
@@ -33,7 +33,7 @@ async function main() {
         await run('verify:verify', {
             address: contract.address,
             constructorArguments: [
-                USDT_ADDRESS, 
+                FAKE_USDT_ADDRESS, 
                 TTT_ADDRESS, 
                 rewardPerDay, 
                 month, 
@@ -42,18 +42,17 @@ async function main() {
                 ],
                 contract: "contracts/Staking.sol:Staking"
             });
+            console.log('Verify successfull');
         } catch (e: any) {
             console.log(e.message)
         }
-    
-    console.log('Verify successfull');
-    
+        
     console.log('Mint reward tokens to staking contract');
 
-    const token = await hre.ethers.getContractAt("TTT", TTT_ADDRESS);
-    await token.mint(contract.address, rewardPerDay.mul(30)); // Проверить на правильность + ^ по сравнению с другими проектами
+    const token = await hre.ethers.getContractAt("Token", TTT_ADDRESS);
+    await token.mint(contract.address, rewardPerDay.mul(30));
 
-    console.log('Minting complite');
+    console.log('Minting complete');
 }
 
 

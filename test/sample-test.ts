@@ -38,7 +38,7 @@ describe("Staking", function () {
     // });
     
     
-    Reward = await ethers.getContractFactory("TTT");
+    Reward = await ethers.getContractFactory("Token");
     Staking = await ethers.getContractFactory("Staking");
     token = await ethers.getContractAt("ERC20", config.mainnet.USDT_ADDRESS);
 
